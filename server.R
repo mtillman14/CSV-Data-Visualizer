@@ -22,6 +22,9 @@ server <- function(input, output, session) {
   
   # Initialize the color factor
   color_factor <- reactiveVal(NULL)
+  
+  # Initialize the facet factor
+  facet_factor <- reactiveVal(NULL)
 
   #########################################################
   # LOAD CSV
@@ -86,6 +89,10 @@ server <- function(input, output, session) {
     updateSelectInput(session, "colorFactorSelectInput",
                         label = "Color Factor",
                         choices = factorColNames)
+    
+    updateSelectInput(session, "facetFactorSelectInput",
+                        label = "Facet Factor",
+                        choices = factorColNames)
 
     output$dataTable <- renderDT({
         datatable(data)
@@ -138,10 +145,12 @@ server <- function(input, output, session) {
         xtickFactors <- factorColNames
         plotReplicationFactors <- factorColNames
         colorFactors <- factorColNames
+        facetFactors <- factorColNames
     } else {
         xtickFactors <- unselectedFactors
         plotReplicationFactors <- unselectedFactors
         colorFactors <- unselectedFactors
+        facetFactors <- unselectedFactors
         # Average the data by the selected factors
         averagedData <- data %>%
         group_by(across(all_of(unselectedFactors))) %>%
@@ -163,6 +172,11 @@ server <- function(input, output, session) {
     updateSelectInput(session, "colorFactorSelectInput",
                         label = "Color Factor",
                         choices = colorFactors)
+    
+    # Update the Facet Factor select input
+    updateSelectInput(session, "facetFactorSelectInput",
+                        label = "Facet Factor",
+                        choices = facetFactors)
 
     # Update the data table with the averaged data
     output$dataTable <- renderDT({
@@ -198,6 +212,16 @@ server <- function(input, output, session) {
     
     color_factor(colorFactor)
   })
+  
+  observeEvent(input$facetFactorSelectInput, {
+    facetFactor = input$facetFactorSelectInput
+    
+    if (facetFactor == "") {
+      facetFactor = NULL
+    }
+    
+    facet_factor(facetFactor)
+  })
 
   #########################################################
   # SIDEBAR: EXPORT SETTINGS
@@ -209,6 +233,7 @@ server <- function(input, output, session) {
   observeEvent(input$runPlotButton, {
     data <- data_store()
     colorFactor <- color_factor()
+    facetFactor <- facet_factor()
     factorColNames <- names(data)[sapply(data, is.factor)]
     selectedOutcomeMeasure <- input$outcomeMeasureDropDown
     # Remove all of the variable columns from the data frame except for the selected outcome measure
@@ -273,6 +298,10 @@ server <- function(input, output, session) {
     
     if (!is.null(colorFactor)) {
       p <- p + aes(color = !!sym(colorFactor))
+    }
+    
+    if (!is.null(facetFactor)) {
+      p <- p + facet_wrap(vars(!!sym(facetFactor)))
     }
     
     # Convert to plotly for interactivity

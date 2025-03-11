@@ -53,6 +53,11 @@ ui <- fluidPage(
               inputId = "colorFactorSelectInput",
               label = "Color Factor",
               choices = NULL
+            ),
+            selectInput(
+              inputId = "facetFactorSelectInput",
+              label = "Facet Factor",
+              choices = NULL
             )
         ),
         tabPanel("Stats",
