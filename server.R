@@ -3,6 +3,7 @@ library(plotly)
 library(shinyjs)
 library(DT)
 library(dplyr)
+library(ggplot2)
 
 source("getColNames.R")
 
@@ -18,6 +19,9 @@ server <- function(input, output, session) {
 
   # Initialize reactive value to store the full list of factors.
   factor_list_original <- reactiveVal(NULL)
+  
+  # Initialize the color factor
+  color_factor <- reactiveVal(NULL)
 
   #########################################################
   # LOAD CSV
@@ -77,7 +81,11 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "tickFactorsSelectizeInput",
                          label = "XTick Factor Order",
                          choices = factorColNames,
-                         selected = defaultSelectedFactor)  # Set the first two factor columns to be selected by default
+                         selected = defaultSelectedFactor)  # Set the first one or two factor columns to be selected by default
+    
+    updateSelectInput(session, "colorFactorSelectInput",
+                        label = "Color Factor",
+                        choices = factorColNames)
 
     output$dataTable <- renderDT({
         datatable(data)
@@ -129,9 +137,11 @@ server <- function(input, output, session) {
         averagedData <- data
         xtickFactors <- factorColNames
         plotReplicationFactors <- factorColNames
+        colorFactors <- factorColNames
     } else {
         xtickFactors <- unselectedFactors
         plotReplicationFactors <- unselectedFactors
+        colorFactors <- unselectedFactors
         # Average the data by the selected factors
         averagedData <- data %>%
         group_by(across(all_of(unselectedFactors))) %>%
@@ -147,7 +157,12 @@ server <- function(input, output, session) {
     # Update the XTick Factor Order selectize input
     updateSelectizeInput(session, "tickFactorsSelectizeInput",
                          label = "XTick Factor Order",
-                         choices = xtickFactors)  # Set the first two factor columns to be selected by default
+                         choices = xtickFactors)
+    
+    # Update the Color Factor select input
+    updateSelectInput(session, "colorFactorSelectInput",
+                        label = "Color Factor",
+                        choices = colorFactors)
 
     # Update the data table with the averaged data
     output$dataTable <- renderDT({
@@ -173,6 +188,16 @@ server <- function(input, output, session) {
                              label = "Plot Replication Factors",
                              choices = plotReplicationFactors)
   })
+  
+  observeEvent(input$colorFactorSelectInput, {
+    colorFactor = input$colorFactorSelectInput
+    
+    if (colorFactor == "") {
+      colorFactor = NULL
+    }
+    
+    color_factor(colorFactor)
+  })
 
   #########################################################
   # SIDEBAR: EXPORT SETTINGS
@@ -183,32 +208,76 @@ server <- function(input, output, session) {
   #########################################################
   observeEvent(input$runPlotButton, {
     data <- data_store()
-    factorColNames <- factor_list_original()
+    colorFactor <- color_factor()
+    factorColNames <- names(data)[sapply(data, is.factor)]
     selectedOutcomeMeasure <- input$outcomeMeasureDropDown
     # Remove all of the variable columns from the data frame except for the selected outcome measure
     selectedDataReductionFactors <- input$dataReductionFactorsCheckboxGroup
     selectedXTickFactors <- input$tickFactorsSelectizeInput
-    # selectedPlotReplicationFactors <- input$plotReplicateCheckboxGroup
 
     # Add defaultFactor column
     data$Observation <- 1:nrow(data)
     if (length(selectedXTickFactors) == 0 || length(selectedXTickFactors) == length(factorColNames)) {
         selectedXTickFactors <- c("Observation")
     }
+    
+    # Define the factors in the tooltip
+    factors_for_tooltip <- setdiff(factorColNames, selectedXTickFactors)
+    
+    # Create tooltip text dynamically
+    tooltip_parts <- c(
+      "paste('Value: ', round(!!sym(selectedOutcomeMeasure), 4)"
+    )
+    
+    for (factor in factors_for_tooltip) {
+      tooltip_parts <- c(tooltip_parts, 
+                         paste0("'<br>", factor, ": ', ", factor))
+    }
+    
+    tooltip_expr <- paste(tooltip_parts, collapse = ", ")
+    tooltip_expr <- paste0(tooltip_expr, ")")
+    
+    # Parse and evaluate the expression
+    tooltip_aes <- eval(parse(text = paste0("aes(text = ", tooltip_expr, ")")))
 
     # Create a formula for the x-axis using the selected XTick factors
     xFormula <- as.formula(paste0("~", paste(selectedXTickFactors, collapse = " + ")))
     yFormula <- as.formula(paste0("~", selectedOutcomeMeasure))
-
-    output$plot <- renderPlotly({
-        # Example plotly plot
-        plot_ly(
-        data = data,
-        x = xFormula,
-        y = yFormula,
-        type = "scatter"
-        )
-  })
-    # You can use the order of the checkboxes here to update your plot or perform other actions
+    
+    # Plot differently depending on how many X tick factors are selected.
+    if (length(selectedXTickFactors) > 2) {
+      showModal(modalDialog(
+        title = "Unsupported Selection",
+        "Too many X Tick factors selected Only 1 or 2 are supported!",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+      return()
+    }
+    
+    if (length(selectedXTickFactors) == 2) {
+      tickFactor = selectedXTickFactors[1]
+      facetFactor = selectedXTickFactors[2]
+    }
+    
+    if (length(selectedXTickFactors) == 1) {
+      tickFactor = selectedXTickFactors[1]
+      
+      p <- ggplot(data, aes(x = !!sym(tickFactor), y = !!sym(selectedOutcomeMeasure))) +
+        geom_point(position = position_dodge(width = 0.6), size = 3, alpha = 0.8) +
+        scale_x_discrete(name = tickFactor)
+      
+      # Add the tooltip mapping to the plot
+      p <- p + tooltip_aes
+    }
+    
+    if (!is.null(colorFactor)) {
+      p <- p + aes(color = !!sym(colorFactor))
+    }
+    
+    # Convert to plotly for interactivity
+    p_interactive <- ggplotly(p, tooltip = "text", mode = "markers")
+    
+    output$plot <- renderPlotly({p_interactive})
   })
 }

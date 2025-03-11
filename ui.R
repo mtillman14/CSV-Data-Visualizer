@@ -48,6 +48,11 @@ ui <- fluidPage(
                 inputId = "plotReplicateCheckboxGroup",
                 label = "Plot Replication Factors",
                 choices = NULL
+            ),
+            selectInput(
+              inputId = "colorFactorSelectInput",
+              label = "Color Factor",
+              choices = NULL
             )
         ),
         tabPanel("Stats",
