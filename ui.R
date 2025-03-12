@@ -11,6 +11,12 @@ ui <- fluidPage(
         max-height: 90vh;
         overflow-y: auto;
       }
+      .main-panel, .tab-content, .tab-pane, .plotly {
+        height: 100vh;
+      }
+      .plotly {
+        width: 100%;
+      }
       .fixed-buttons {
         position: absolute;
         bottom: 10px;
@@ -26,23 +32,23 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       class = "sidebar",
+      width = 2,
       selectInput(
         inputId = "outcomeMeasureDropDown",
         label = "Variable to Plot",
         choices = NULL # Initially no choices
       ),
       tabsetPanel(
-        tabPanel("Grouping",
+        tabPanel("Plot",
           checkboxGroupInput(
             inputId = "dataReductionFactorsCheckboxGroup",
-            label = "Data Reduction Factors",
+            label = "Average Over Factors",
             choices = NULL
             ),
-            selectizeInput(
-              inputId = "tickFactorsSelectizeInput",
+            selectInput(
+              inputId = "tickFactorsselectInput",
               label = "XTick Factor Order",
-              choices = NULL,
-              multiple = TRUE
+              choices = NULL
             ),
             selectInput(
               inputId = "colorFactorSelectInput",
@@ -71,13 +77,14 @@ ui <- fluidPage(
       )
     ),
     mainPanel(
+      width = 10,
       textOutput("filePath"),
       tabsetPanel(
         tabPanel("Data Table",
           div(class = "data-table-container", DTOutput("dataTable"))  # Add DTOutput for the data table inside a scrollable div
         ),
         tabPanel("Grouped",
-          plotlyOutput("plot")
+          plotlyOutput("plot", height = "90%")
         ),
         tabPanel("Relations", 
           # Add content for Relations tab here

@@ -81,14 +81,14 @@ server <- function(input, output, session) {
                       choices = variableColNames)
 
     updateCheckboxGroupInput(session, "dataReductionFactorsCheckboxGroup",
-                             label = "Data Reduction Factors",
+                             label = "Average Over Factors",
                              choices = factorColNames)
 
     updateCheckboxGroupInput(session, "plotReplicateCheckboxGroup",
                              label = "Plot Replication Factors",
                              choices = factorColNames)
 
-    updateSelectizeInput(session, "tickFactorsSelectizeInput",
+    updateSelectInput(session, "tickFactorsselectInput",
                          label = "XTick Factor Order",
                          choices = factorColNames,
                          selected = defaultSelectedFactor)  # Set the first one or two factor columns to be selected by default
@@ -227,7 +227,7 @@ server <- function(input, output, session) {
                              choices = plotReplicationFactors)
 
     # Update the XTick Factor Order selectize input
-    updateSelectizeInput(session, "tickFactorsSelectizeInput",
+    updateSelectInput(session, "tickFactorsselectInput",
                          label = "XTick Factor Order",
                          choices = xtickFactors)
     
@@ -250,13 +250,13 @@ server <- function(input, output, session) {
     data_store(averagedData)
   }, ignoreNULL = FALSE)
 
-  observeEvent(input$tickFactorsSelectizeInput, {
+  observeEvent(input$tickFactorsselectInput, {
     dataReductionFactors <- factor_list_original()
     selectedDataReductionFactors <- input$dataReductionFactorsCheckboxGroup
 
     unselectedDataReductionFactors <- setdiff(dataReductionFactors, selectedDataReductionFactors)
 
-    selectedXTickFactors <- input$tickFactorsSelectizeInput    
+    selectedXTickFactors <- input$tickFactorsselectInput    
 
     # Plot replication factors are the unselected data reduction factors, and the unselected XTicks
     plotReplicationFactors <- setdiff(unselectedDataReductionFactors, selectedXTickFactors)
@@ -301,7 +301,7 @@ server <- function(input, output, session) {
     selectedOutcomeMeasure <- input$outcomeMeasureDropDown
     # Remove all of the variable columns from the data frame except for the selected outcome measure
     selectedDataReductionFactors <- input$dataReductionFactorsCheckboxGroup
-    selectedXTickFactors <- input$tickFactorsSelectizeInput
+    selectedXTickFactors <- input$tickFactorsselectInput
 
     # Add defaultFactor column
     data$Observation <- 1:nrow(data)
