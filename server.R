@@ -4,6 +4,7 @@ library(shinyjs)
 library(DT)
 library(dplyr)
 library(ggplot2)
+library(svglite)
 
 source("getColNames.R")
 
