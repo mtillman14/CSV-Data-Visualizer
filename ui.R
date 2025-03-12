@@ -44,21 +44,21 @@ ui <- fluidPage(
               choices = NULL,
               multiple = TRUE
             ),
-            checkboxGroupInput(
-                inputId = "plotReplicateCheckboxGroup",
-                label = "Plot Replication Factors",
-                choices = NULL
-            ),
             selectInput(
               inputId = "colorFactorSelectInput",
               label = "Color Factor",
               choices = NULL
             ),
-            selectInput(
-              inputId = "facetFactorSelectInput",
-              label = "Facet Factor",
+            checkboxGroupInput(
+              inputId = "facetFactorCheckboxGroup",
+              label = "Facet Factors",
               choices = NULL
             )
+            # checkboxGroupInput(
+            #     inputId = "plotReplicateCheckboxGroup",
+            #     label = "Plot Replication Factors",
+            #     choices = NULL
+            # )
         ),
         tabPanel("Stats",
           # Add content for Stats tab here

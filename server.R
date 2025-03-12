@@ -26,6 +26,13 @@ server <- function(input, output, session) {
   # Initialize the facet factor
   facet_factor <- reactiveVal(NULL)
 
+  # Initialize the Plotly plot
+  plotly_plot <- reactiveVal(NULL)
+  ggplot_plot <- reactiveVal(NULL)
+
+  # Initialize the column name being plotted
+  col_name <- reactiveVal(NULL)
+
   #########################################################
   # LOAD CSV
   #########################################################
@@ -44,7 +51,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$loadFile, {
     req(input$fileInput)
-    data <- read.csv(input$fileInput$datapath)    
+    data <- read.csv(input$fileInput$datapath, stringsAsFactors = TRUE)    
 
     output$filePath <- renderText({
       paste("Loaded file name:", input$fileInput$name)
@@ -90,7 +97,7 @@ server <- function(input, output, session) {
                         label = "Color Factor",
                         choices = factorColNames)
     
-    updateSelectInput(session, "facetFactorSelectInput",
+    updateCheckboxGroupInput(session, "facetFactorCheckboxGroup",
                         label = "Facet Factor",
                         choices = factorColNames)
 
@@ -104,16 +111,72 @@ server <- function(input, output, session) {
   })
 
   #########################################################
+  # CHANGE VARIABLE
+  #########################################################
+  observeEvent(input$outcomeMeasureDropDown, {
+    selectedOutcomeMeasure <- input$outcomeMeasureDropDown
+
+    # Update the column name being plotted
+    col_name(selectedOutcomeMeasure)
+  })
+
+  #########################################################
   # SHOW/HIDE SIDEBAR
   #########################################################
   observeEvent(input$exportButton, {
-    # Code to handle export functionality
+    req(plotly_plot())
+    req(col_name())
+
+    # Get the column name being plotted
+    colName <- col_name()
+    
+    # Create better filenames with the column name
+    timestamp <- format(Sys.time(), "%Y%m%d-%H%M%S")
+    png_filename <- paste0(colName, "_", timestamp, ".png")
+    svg_filename <- paste0(colName, "_", timestamp, ".svg")
+    
+    # Create temporary files with proper names
+    temp_png <- file.path(tempdir(), png_filename)
+    temp_svg <- file.path(tempdir(), svg_filename)
+
+    # Use the ggplot object for saving
+    p <- ggplot_plot()
+
+    # Save the files with proper names
+    ggsave(temp_png, plot = p, device = "png", width = 8, height = 6)
+    ggsave(temp_svg, plot = p, device = "svg", width = 8, height = 6)
+
+    # Show a modal dialog with buttons for each format
     showModal(modalDialog(
-      title = "Export Data",
-      "Export functionality is not implemented yet.",
-      easyClose = TRUE,
-      footer = NULL
+        title = "Download Plot",
+        "Choose a format to download your plot:",
+        footer = tagList(
+            downloadButton("downloadPNG", "Download PNG"),
+            downloadButton("downloadSVG", "Download SVG")
+        ),
+        easyClose = TRUE
     ))
+    
+    # Define download handlers for each format
+    output$downloadPNG <- downloadHandler(
+        filename = function() {
+            png_filename  # Use the filename with colName already included
+        },
+        content = function(file) {
+            file.copy(temp_png, file)
+        },
+        contentType = "image/png"
+    )
+    
+    output$downloadSVG <- downloadHandler(
+        filename = function() {
+            svg_filename  # Use the filename with colName already included
+        },
+        content = function(file) {
+            file.copy(temp_svg, file)
+        },
+        contentType = "image/svg+xml"
+    )
   })
   
   observeEvent(input$settingsButton, {
@@ -174,7 +237,7 @@ server <- function(input, output, session) {
                         choices = colorFactors)
     
     # Update the Facet Factor select input
-    updateSelectInput(session, "facetFactorSelectInput",
+    updateCheckboxGroupInput(session, "facetFactorCheckboxGroup",
                         label = "Facet Factor",
                         choices = facetFactors)
 
@@ -204,20 +267,20 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$colorFactorSelectInput, {
-    colorFactor = input$colorFactorSelectInput
+    colorFactor <- input$colorFactorSelectInput
     
-    if (colorFactor == "") {
-      colorFactor = NULL
+    if (length(colorFactor) == 0 || colorFactor == "") {
+      colorFactor <- NULL
     }
     
     color_factor(colorFactor)
   })
   
-  observeEvent(input$facetFactorSelectInput, {
-    facetFactor = input$facetFactorSelectInput
+  observeEvent(input$facetFactorCheckboxGroup, {
+    facetFactor <- input$facetFactorCheckboxGroup
     
-    if (facetFactor == "") {
-      facetFactor = NULL
+    if (length(facetFactor) == 0 || facetFactor == "") {
+      facetFactor <- NULL
     }
     
     facet_factor(facetFactor)
@@ -225,7 +288,7 @@ server <- function(input, output, session) {
 
   #########################################################
   # SIDEBAR: EXPORT SETTINGS
-  #########################################################
+  #########################################################  
 
   #########################################################
   # SIDEBAR: RUN PLOT
@@ -270,20 +333,20 @@ server <- function(input, output, session) {
     yFormula <- as.formula(paste0("~", selectedOutcomeMeasure))
     
     # Plot differently depending on how many X tick factors are selected.
-    if (length(selectedXTickFactors) > 2) {
-      showModal(modalDialog(
-        title = "Unsupported Selection",
-        "Too many X Tick factors selected Only 1 or 2 are supported!",
-        easyClose = TRUE,
-        footer = modalButton("Close")
-      ))
-      return()
-    }
+    # if (length(selectedXTickFactors) > 2) {
+    #   showModal(modalDialog(
+    #     title = "Unsupported Selection",
+    #     "Too many X Tick factors selected Only 1 or 2 are supported!",
+    #     easyClose = TRUE,
+    #     footer = modalButton("Close")
+    #   ))
+    #   return()
+    # }
     
-    if (length(selectedXTickFactors) == 2) {
-      tickFactor = selectedXTickFactors[1]
-      facetFactor = selectedXTickFactors[2]
-    }
+    # if (length(selectedXTickFactors) == 2) {
+    #   tickFactor = selectedXTickFactors[1]
+    #   facetFactor = selectedXTickFactors[2]
+    # }
     
     if (length(selectedXTickFactors) == 1) {
       tickFactor = selectedXTickFactors[1]
@@ -298,15 +361,21 @@ server <- function(input, output, session) {
     
     if (!is.null(colorFactor)) {
       p <- p + aes(color = !!sym(colorFactor))
-    }
+    }    
     
     if (!is.null(facetFactor)) {
-      p <- p + facet_wrap(vars(!!sym(facetFactor)))
+        if (!is.vector(facetFactor)) {
+            facetFactor <- c(facetFactor)
+        }
+      p <- p + facet_wrap(vars(!!!syms(facetFactor)))
     }
     
     # Convert to plotly for interactivity
     p_interactive <- ggplotly(p, tooltip = "text", mode = "markers")
     
     output$plot <- renderPlotly({p_interactive})
+
+    plotly_plot(p_interactive)
+    ggplot_plot(p)
   })
 }
