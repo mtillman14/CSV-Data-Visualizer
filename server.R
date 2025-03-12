@@ -7,6 +7,7 @@ library(ggplot2)
 library(svglite)
 
 source("getColNames.R")
+source("init_ui_with_data.R")
 
 server <- function(input, output, session) {
 
@@ -52,63 +53,20 @@ server <- function(input, output, session) {
 
   observeEvent(input$loadFile, {
     req(input$fileInput)
-    data <- read.csv(input$fileInput$datapath, stringsAsFactors = TRUE)    
 
     output$filePath <- renderText({
       paste("Loaded file name:", input$fileInput$name)
     })
 
     removeModal()
-
-    factorColNames <- getFactorColNames(data)
-    variableColNames <- getVariableColNames(data)
-
-    # Store the full list of factors in a reactive value
-    factor_list_original(factorColNames)
-
-    # Make sure each of the factorColNames are factors in the data data frame
-    for (col in factorColNames) {
-        data[[col]] <- as.factor(data[[col]])
-    }
-
-    if (length(factorColNames) > 2) {
-        defaultSelectedFactor <- factorColNames[2]
-    } else {
-        defaultSelectedFactor <- factorColNames[1]
-    }
-
-    updateSelectInput(session, "outcomeMeasureDropDown",
-                      label = "Variable to Plot",
-                      choices = variableColNames)
-
-    updateCheckboxGroupInput(session, "dataReductionFactorsCheckboxGroup",
-                             label = "Average Over Factors",
-                             choices = factorColNames)
-
-    updateCheckboxGroupInput(session, "plotReplicateCheckboxGroup",
-                             label = "Plot Replication Factors",
-                             choices = factorColNames)
-
-    updateSelectInput(session, "tickFactorsselectInput",
-                         label = "XTick Factor Order",
-                         choices = factorColNames,
-                         selected = defaultSelectedFactor)  # Set the first one or two factor columns to be selected by default
     
-    updateSelectInput(session, "colorFactorSelectInput",
-                        label = "Color Factor",
-                        choices = factorColNames)
+    data <- read.csv(input$fileInput$datapath, stringsAsFactors = TRUE) 
     
-    updateCheckboxGroupInput(session, "facetFactorCheckboxGroup",
-                        label = "Facet Factor",
-                        choices = factorColNames)
-
-    output$dataTable <- renderDT({
-        datatable(data)
-    })
-
     # Store the data in a reactive value
     data_store_original(data)
     data_store(data)
+    
+    init_ui_with_data(data, session, output, factor_list_original, data_store_original, data_store)
   })
 
   #########################################################
@@ -119,6 +77,41 @@ server <- function(input, output, session) {
 
     # Update the column name being plotted
     col_name(selectedOutcomeMeasure)
+  })
+  
+  #########################################################
+  # PIVOT OUTCOMES TO A FACTOR
+  #########################################################
+  observeEvent(input$pivotLongCheckbox, {
+    doPivot <- input$LongCheckbox
+    df <- data_store_original()
+    
+    if (length(doPivot)==0) {
+      doPivot = FALSE
+    }
+    
+    factorColNames <- names(df)[sapply(df, is.factor)]
+    
+    if (doPivot == TRUE) {
+      dataStore <- pivot_longer(df, factorColNames)
+    } else {
+      # Either un-pivot, or do nothing if initial load and not yet pivoted.
+      if ("OutcomeMeasure" %in% factorColNames) {
+        dataStore <- unpivotLonger(df, factorColNames)
+      } else {
+        dataStore <- df
+      }
+    }
+    
+    data_store_original(dataStore)
+    data_store(dataStore)
+
+    showModal(modalDialog(
+      title = "TEST FACTOR LIST",
+      factor_list_original()
+    ))
+    
+    init_ui_with_data(dataStore, session, output, factor_list_original)
   })
 
   #########################################################
