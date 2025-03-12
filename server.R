@@ -7,6 +7,7 @@ library(ggplot2)
 library(svglite)
 
 source("getColNames.R")
+source("pivotLonger.R")
 
 server <- function(input, output, session) {
 
@@ -101,6 +102,10 @@ server <- function(input, output, session) {
     updateCheckboxGroupInput(session, "facetFactorCheckboxGroup",
                         label = "Facet Factor",
                         choices = factorColNames)
+    
+    updateCheckboxInput(session, "pivotLongCheckbox",
+                        label = "Pivot Outcome Factors",
+                        value = FALSE)
 
     output$dataTable <- renderDT({
         datatable(data)
@@ -109,6 +114,83 @@ server <- function(input, output, session) {
     # Store the data in a reactive value
     data_store_original(data)
     data_store(data)
+  })
+  
+  #########################################################
+  # PIVOT OUTCOME MEASURES TO FACTOR
+  #########################################################
+  observeEvent(input$pivotLongCheckbox, {
+    doPivot <- input$pivotLongCheckbox
+    dataStore <- data_store_original()
+    
+    factorColNames <- names(df)[sapply(dataStore, is.factor)]
+    
+    if (length(doPivot) == 0) {
+      doPivot = FALSE
+    }
+    
+    if (doPivot == TRUE) {
+      dataStore <- pivotLonger(dataStore, factorColNames)
+    } else if (doPivot == FALSE) {
+      if ("OutcomeMeasure" %in% factorColNames && "Value" %in% factorColNames) {
+        dataStore <- unpivotLonger(dataStore)
+      } else {
+        dataStore <- dataStore
+      }
+    }
+    
+    factorColNames <- names(df)[sapply(dataStore, is.factor)]
+    
+    data_store(dataStore)
+    data_store_original(dataStore)
+    
+    ################### START Replica of load file code
+    factorColNames <- getFactorColNames(dataStore)
+    variableColNames <- getVariableColNames(dataStore)
+    
+    # Store the full list of factors in a reactive value
+    factor_list_original(factorColNames)
+    
+    # Make sure each of the factorColNames are factors in the data data frame
+    for (col in factorColNames) {
+      dataStore[[col]] <- as.factor(dataStore[[col]])
+    }
+    
+    if (length(factorColNames) > 2) {
+      defaultSelectedFactor <- factorColNames[2]
+    } else {
+      defaultSelectedFactor <- factorColNames[1]
+    }
+    
+    updateSelectInput(session, "outcomeMeasureDropDown",
+                      label = "Variable to Plot",
+                      choices = variableColNames)
+    
+    updateCheckboxGroupInput(session, "dataReductionFactorsCheckboxGroup",
+                             label = "Average Over Factors",
+                             choices = factorColNames)
+    
+    updateCheckboxGroupInput(session, "plotReplicateCheckboxGroup",
+                             label = "Plot Replication Factors",
+                             choices = factorColNames)
+    
+    updateSelectInput(session, "tickFactorsselectInput",
+                      label = "XTick Factor Order",
+                      choices = factorColNames,
+                      selected = defaultSelectedFactor)  # Set the first one or two factor columns to be selected by default
+    
+    updateSelectInput(session, "colorFactorSelectInput",
+                      label = "Color Factor",
+                      choices = factorColNames)
+    
+    updateCheckboxGroupInput(session, "facetFactorCheckboxGroup",
+                             label = "Facet Factor",
+                             choices = factorColNames)
+    
+    output$dataTable <- renderDT({
+      datatable(dataStore)
+    })
+    ################### END Replica of load file code
   })
 
   #########################################################
@@ -280,7 +362,7 @@ server <- function(input, output, session) {
   observeEvent(input$facetFactorCheckboxGroup, {
     facetFactor <- input$facetFactorCheckboxGroup
     
-    if (length(facetFactor) == 0 || facetFactor == "") {
+    if (length(facetFactor) < 1 || all(facetFactor == "")) {
       facetFactor <- NULL
     }
     
@@ -333,28 +415,13 @@ server <- function(input, output, session) {
     xFormula <- as.formula(paste0("~", paste(selectedXTickFactors, collapse = " + ")))
     yFormula <- as.formula(paste0("~", selectedOutcomeMeasure))
     
-    # Plot differently depending on how many X tick factors are selected.
-    # if (length(selectedXTickFactors) > 2) {
-    #   showModal(modalDialog(
-    #     title = "Unsupported Selection",
-    #     "Too many X Tick factors selected Only 1 or 2 are supported!",
-    #     easyClose = TRUE,
-    #     footer = modalButton("Close")
-    #   ))
-    #   return()
-    # }
-    
-    # if (length(selectedXTickFactors) == 2) {
-    #   tickFactor = selectedXTickFactors[1]
-    #   facetFactor = selectedXTickFactors[2]
-    # }
-    
     if (length(selectedXTickFactors) == 1) {
       tickFactor = selectedXTickFactors[1]
       
       p <- ggplot(data, aes(x = !!sym(tickFactor), y = !!sym(selectedOutcomeMeasure))) +
         geom_point(position = position_dodge(width = 0.6), size = 3, alpha = 0.8) +
-        scale_x_discrete(name = tickFactor)
+        scale_x_discrete(name = tickFactor) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
       
       # Add the tooltip mapping to the plot
       p <- p + tooltip_aes

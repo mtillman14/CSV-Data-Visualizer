@@ -40,6 +40,11 @@ ui <- fluidPage(
       ),
       tabsetPanel(
         tabPanel("Plot",
+           checkboxInput(
+             inputId = "pivotLongCheckbox",
+             label = "Pivot Outcome Measures",
+             value = FALSE
+           ),
           checkboxGroupInput(
             inputId = "dataReductionFactorsCheckboxGroup",
             label = "Average Over Factors",
